@@ -1,19 +1,53 @@
 -- 向游戏注册这个模组
 local GamblingRoomExpansion = RegisterMod("Gambling Room Expansion", 1)
 
--- 在游戏日志中留下加载成功的信息
 Isaac.DebugString("[Gambling Room Expansion] main.lua loaded successfully")
+
+-- 玩家接触测试机器时执行
+local function OnSoulMachineCollision(_, slot, collider)
+    local data = slot:GetData()
+
+    -- 普通献血机不受影响
+    if not data.IsSoulMachine then
+        return
+    end
+
+    -- 检查碰到机器的实体是不是玩家
+    local player = collider:ToPlayer()
+
+    if player == nil then
+        return
+    end
+
+    -- 第一次碰到时，把机器暂时染成绿色
+    if not data.HasBeenTouched then
+        data.HasBeenTouched = true
+
+        slot:SetColor(
+            Color(0.4, 1, 0.4, 1, 0, 0.3, 0),
+            -1,
+            1,
+            false,
+            false
+        )
+
+        Isaac.DebugString(
+            "[Gambling Room Expansion] test soul machine touched"
+        )
+    end
+
+    -- 保留实体碰撞，但阻止原版献血机的扣血和奖励代码
+    return false
+end
 
 -- 处理控制台命令
 local function OnExecuteCommand(_, command)
-    -- 如果输入的不是我们的命令，就不执行后面的内容
     if command ~= "spawnsoulmachine" then
         return
     end
 
     local player = Isaac.GetPlayer(0)
 
-    -- 在角色右边生成一台献血机
     local machine = Isaac.Spawn(
         EntityType.ENTITY_SLOT,
         SlotVariant.BLOOD_DONATION_MACHINE,
@@ -23,10 +57,7 @@ local function OnExecuteCommand(_, command)
         nil
     )
 
-    -- 暂时关闭碰撞，防止它执行原版献血机功能
-    machine.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
-
-    -- 临时染成蓝色，方便辨认
+    -- 临时染成蓝色
     machine:SetColor(
         Color(0.4, 0.7, 1, 1, 0, 0, 0.4),
         -1,
@@ -35,14 +66,21 @@ local function OnExecuteCommand(_, command)
         false
     )
 
-    -- 给它添加一个隐藏标记，供后续代码识别
+    -- 标记为我们的测试机器
     machine:GetData().IsSoulMachine = true
 
-    Isaac.DebugString("[Gambling Room Expansion] test soul machine spawned")
+    Isaac.DebugString(
+        "[Gambling Room Expansion] test soul machine spawned"
+    )
 end
 
--- 输入控制台命令时，执行上面的函数
 GamblingRoomExpansion:AddCallback(
     ModCallbacks.MC_EXECUTE_CMD,
     OnExecuteCommand
+)
+
+GamblingRoomExpansion:AddCallback(
+    ModCallbacks.MC_PRE_SLOT_COLLISION,
+    OnSoulMachineCollision,
+    SlotVariant.BLOOD_DONATION_MACHINE
 )
