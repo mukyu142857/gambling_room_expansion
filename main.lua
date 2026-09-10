@@ -1,88 +1,37 @@
 -- 向游戏注册这个模组
 local GamblingRoomExpansion = RegisterMod("Gambling Room Expansion", 1)
 
--- 原型阶段用 SubType 100 区分魂心机器和普通献血机
-local SOUL_MACHINE_SUBTYPE = 100
+-- 必须与 content/entities2.xml 中的 name 完全一致
+local SOUL_MACHINE_NAME = "GRE Soul Heart Machine"
 
--- 魂心机器平时显示的蓝色
-local SOUL_MACHINE_COLOR = Color(
-    0.4,
-    0.7,
-    1,
-    1,
-    0,
-    0,
-    0.4
-)
+-- 按名称取得游戏最终分配给魂心机器的 Variant
+local SOUL_MACHINE_VARIANT =
+    Isaac.GetEntityVariantByName(SOUL_MACHINE_NAME)
 
 Isaac.DebugString("[Gambling Room Expansion] main.lua loaded successfully")
 
--- 当魂心机器生成或重新进入房间时，恢复它的蓝色外观
-local function ApplySoulMachineAppearance(slot)
-    -- 普通献血机不需要处理
-    if slot.SubType ~= SOUL_MACHINE_SUBTYPE then
-        return
-    end
-
-    local data = slot:GetData()
-
-    -- MC_POST_SLOT_UPDATE 每秒会执行很多次，
-    -- 所以每次实体生成后只染色一次
-    if data.GREColorApplied then
-        return
-    end
-
-    data.GREColorApplied = true
-
-    slot:SetColor(
-        SOUL_MACHINE_COLOR,
-        -1,
-        1,
-        false,
-        false
-    )
-end
-
--- 玩家接触测试机器时执行
+-- 玩家接触魂心机器时执行
 local function OnSoulMachineCollision(_, slot, collider)
-    -- 现在使用 SubType 判断身份，不再依赖临时的 IsSoulMachine
-    if slot.SubType ~= SOUL_MACHINE_SUBTYPE then
+    -- 只处理我们的独立 Variant，其他机器不受影响
+    if slot.Variant ~= SOUL_MACHINE_VARIANT then
         return
     end
 
-    -- 检查碰到机器的实体是不是玩家
-    local player = collider:ToPlayer()
-
-    if player == nil then
+    -- 只有玩家碰到机器时才处理
+    if collider:ToPlayer() == nil then
         return
     end
 
-    local data = slot:GetData()
-
-    -- 每次进入这个房间后，第一次碰到机器时暂时染成绿色
-    if not data.GREHasBeenTouched then
-        data.GREHasBeenTouched = true
-
-        slot:SetColor(
-            Color(0.4, 1, 0.4, 1, 0, 0.3, 0),
-            -1,
-            1,
-            false,
-            false
-        )
-
-        Isaac.DebugString(
-            "[Gambling Room Expansion] test soul machine touched"
-        )
-    end
-
-    -- 保留实体碰撞，但阻止原版献血机的扣血和奖励代码
+    -- 暂时只保留碰撞，不扣血，也不给奖励
     return false
 end
 
--- 每次槽机更新时，确认魂心机器的外观已经恢复
-local function OnSoulMachineUpdate(_, slot)
-    ApplySoulMachineAppearance(slot)
+-- REPENTOGON：允许自定义机器在重新进入房间时恢复
+local function OnIsPersistentRoomEntity(_, entityType, variant)
+    if entityType == EntityType.ENTITY_SLOT
+        and variant == SOUL_MACHINE_VARIANT then
+        return true
+    end
 end
 
 -- 处理控制台命令
@@ -91,22 +40,27 @@ local function OnExecuteCommand(_, command)
         return
     end
 
+    -- -1 表示 entities2.xml 中没有找到这个内部名称
+    if SOUL_MACHINE_VARIANT == -1 then
+        Isaac.DebugString(
+            "[Gambling Room Expansion] soul machine entity was not found"
+        )
+        return
+    end
+
     local player = Isaac.GetPlayer(0)
 
-    local machine = Isaac.Spawn(
-    EntityType.ENTITY_SLOT,
-    SlotVariant.BLOOD_DONATION_MACHINE,
-    SOUL_MACHINE_SUBTYPE,
-    player.Position + Vector(80, 0),
-    Vector.Zero,
-    nil
-)
-
--- 生成后立即应用魂心机器外观
-ApplySoulMachineAppearance(machine)
+    Isaac.Spawn(
+        EntityType.ENTITY_SLOT,
+        SOUL_MACHINE_VARIANT,
+        0,
+        player.Position + Vector(80, 0),
+        Vector.Zero,
+        nil
+    )
 
     Isaac.DebugString(
-        "[Gambling Room Expansion] test soul machine spawned"
+        "[Gambling Room Expansion] custom soul machine spawned"
     )
 end
 
@@ -117,12 +71,10 @@ GamblingRoomExpansion:AddCallback(
 
 GamblingRoomExpansion:AddCallback(
     ModCallbacks.MC_PRE_SLOT_COLLISION,
-    OnSoulMachineCollision,
-    SlotVariant.BLOOD_DONATION_MACHINE
+    OnSoulMachineCollision
 )
 
 GamblingRoomExpansion:AddCallback(
-    ModCallbacks.MC_POST_SLOT_UPDATE,
-    OnSoulMachineUpdate,
-    SlotVariant.BLOOD_DONATION_MACHINE
+    ModCallbacks.MC_IS_PERSISTENT_ROOM_ENTITY,
+    OnIsPersistentRoomEntity
 )

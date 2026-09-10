@@ -1,0 +1,16 @@
+<entities anm2root="gfx/" version="5">
+    <entity
+        name="GRE Soul Heart Machine"
+        id="6"
+        variant="1000"
+        subtype="0"
+        anm2path="006.002_blood donation machine.anm2"
+        collisionDamage="0"
+        collisionMass="100"
+        collisionRadius="20"
+        friction="0"
+        gridCollision="ground"
+        numGridCollisionPoints="4"
+        shadowSize="20"
+    />
+</entities>
